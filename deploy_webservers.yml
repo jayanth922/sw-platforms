@@ -1,0 +1,82 @@
+- name: Deploy webservers
+  hosts: webservers
+  become: yes
+  tasks:
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+      tags: ['deploy']
+
+    - name: Set web page message based on IP
+      set_fact:
+        web_message: |
+          <html>
+          <head><title>Welcome</title></head>
+          <body>
+            <h1>Hello World from SJSU-1</h1>
+          </body>
+          </html>
+      when: ansible_host == '10.0.0.238'
+      tags: ['deploy']
+
+    - name: Set web page message based on IP for VM2
+      set_fact:
+        web_message: |
+          <html>
+          <head><title>Welcome</title></head>
+          <body>
+            <h1>Hello World from SJSU-2</h1>
+          </body>
+          </html>
+      when: ansible_host == '10.0.0.192'
+      tags: ['deploy']
+
+    - name: Copy index.html to the webserver
+      copy:
+        dest: /var/www/html/index.html
+        content: "{{ web_message }}"
+      tags: ['deploy']
+
+    - name: Ensure Nginx is running
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+      tags: ['deploy']
+
+    - name: Configure Nginx to listen on port 8080
+      template:
+        src: nginx.conf.j2
+        dest: /etc/nginx/sites-available/default
+      notify:
+        - Reload Nginx
+      tags: ['deploy']
+
+  handlers:
+    - name: Reload Nginx
+      service:
+        name: nginx
+        state: reloaded
+
+- name: Remove webservers
+  hosts: webservers
+  become: yes
+  tasks:
+    - name: Uninstall Nginx
+      apt:
+        name: nginx
+        state: absent
+      tags: ['undeploy']
+
+    - name: Remove index.html
+      file:
+        path: /var/www/html/index.html
+        state: absent
+      tags: ['undeploy']
+
+    - name: Remove Nginx configuration
+      file:
+        path: /etc/nginx/sites-available/default
+        state: absent
+      tags: ['undeploy']
